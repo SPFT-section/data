@@ -846,10 +846,19 @@
   }
 
   // Email validation + real submission
-  // NOTE: replace FORM_ENDPOINT with your own Formspree endpoint (free at https://formspree.io)
-  // or any other JSON-accepting form backend (Getform, Basin, etc). Sign up, create a form,
-  // copy the endpoint URL it gives you, and paste it below. No secret key is needed client-side.
-  const FORM_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID';
+  // Backend: Google Forms — we POST directly to the form's response endpoint using
+  // fetch (mode: 'no-cors') so the person never leaves this page or sees Google's UI.
+  // Setup (one-time, ~3 min):
+  //   1. Create a Google Form with ONE short-answer question (e.g. "Email").
+  //   2. Open the live form, right-click -> "Inspect", find the <form action="...">.
+  //      The action URL looks like:
+  //      https://docs.google.com/forms/d/e/FORM_ID/formResponse
+  //   3. Find the email question's <input name="entry.XXXXXXXXX">  — copy that number.
+  //   4. Paste both values into GOOGLE_FORM_ACTION and EMAIL_ENTRY_ID below.
+  //   5. Submitted answers show up as new rows in the Form's linked Google Sheet
+  //      (Responses tab -> green Sheets icon -> "Create spreadsheet").
+  const GOOGLE_FORM_ACTION = 'https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse';
+  const EMAIL_ENTRY_ID = 'entry.XXXXXXXXX';
 
   const form = document.getElementById('waitlistForm');
   const emailInput = document.getElementById('emailInput');
@@ -877,17 +886,19 @@
     submitBtn.textContent = 'Joining...';
 
     try{
-      const res = await fetch(FORM_ENDPOINT, {
+      const body = new URLSearchParams();
+      body.append(EMAIL_ENTRY_ID, value);
+      // no-cors: Google Forms doesn't send CORS headers, so the response is opaque —
+      // we can't read res.ok, but the submission still reaches the Sheet if the
+      // action URL and entry ID above are correct.
+      await fetch(GOOGLE_FORM_ACTION, {
         method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: value, source: 'section-waitlist' })
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
       });
-      if(res.ok){
-        openModal();
-        form.reset();
-      } else {
-        showError('Something went wrong on our end — please try again in a moment.');
-      }
+      openModal();
+      form.reset();
     } catch(err){
       showError('Network error — please check your connection and try again.');
     } finally {
